@@ -62,14 +62,21 @@
     return window.performance && performance.now ? performance.now() : Date.now();
   }
   function mendixAction(url, body) {
-    if (!url || url.indexOf("/xas/") === -1) return "";
-    try {
-      var b = typeof body === "string" ? JSON.parse(body) : body;
-      if (b && b.action) {
-        return b.action + (b.params && b.params.actionname ? " (" + b.params.actionname + ")" : "");
-      }
-    } catch (e) {}
-    return "";
+    if (!url || url.indexOf("/xas") === -1) return "";
+    var s = typeof body === "string" ? body : "";
+    if (!s && body) {
+      try {
+        s = JSON.stringify(body);
+      } catch (e) {}
+    }
+    if (!s) return "";
+    // The microflow / nanoflow name lives in "actionname" regardless of how the
+    // /xas/ body is nested, so pull it out directly.
+    var m = s.match(/"actionname"\s*:\s*"([^"]+)"/);
+    if (m) return m[1];
+    // Fall back to the action type (retrieve, commit, executeaction, …).
+    var a = s.match(/"action"\s*:\s*"([^"]+)"/);
+    return a ? a[1] : "";
   }
 
   // Wrap fetch.

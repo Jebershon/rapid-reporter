@@ -19,6 +19,8 @@ const annotateBox = document.getElementById("annotate");
 const shotCanvas = document.getElementById("shot");
 const fileButton = document.getElementById("file");
 const statusText = document.getElementById("status");
+const successBox = document.getElementById("success");
+const successLink = document.getElementById("successLink");
 
 // Holds the Textile block we build from the page context, to attach when filing.
 let contextText = "";
@@ -282,10 +284,44 @@ function readPageContext() {
     dir: document.documentElement.getAttribute("dir") || "",
     userAgent: navigator.userAgent,
     viewport: window.innerWidth + "x" + window.innerHeight,
+    isMendix: false,
     mendixVersion: "",
+    mendixPage: "",
+    mendixPageTitle: "",
+    mendixUser: "",
+    mendixLocale: "",
   };
+  // Runs in the page's MAIN world, so window.mx (the Mendix client) is reachable.
+  // Confirm it's a Mendix app first, then read each detail defensively — the mx
+  // API differs across Mendix versions, so one missing call must not break the rest.
   try {
-    if (window.mx && window.mx.version) ctx.mendixVersion = String(window.mx.version);
+    var mx = window.mx;
+    if (mx && typeof mx === "object") {
+      ctx.isMendix = true;
+      try {
+        if (mx.version) ctx.mendixVersion = String(mx.version);
+      } catch (e) {}
+      try {
+        if (mx.ui && typeof mx.ui.getContentForm === "function") {
+          var form = mx.ui.getContentForm();
+          if (form) {
+            if (form.path) ctx.mendixPage = String(form.path);
+            if (form.title) ctx.mendixPageTitle = String(form.title);
+          }
+        }
+      } catch (e) {}
+      try {
+        if (mx.session && typeof mx.session.getUserName === "function") {
+          ctx.mendixUser = String(mx.session.getUserName());
+        }
+      } catch (e) {}
+      try {
+        if (mx.session && typeof mx.session.getConfig === "function") {
+          var loc = mx.session.getConfig("locale");
+          if (loc) ctx.mendixLocale = String(loc.code || loc.languageCode || loc);
+        }
+      } catch (e) {}
+    }
   } catch (e) {}
   return ctx;
 }
@@ -296,25 +332,35 @@ async function detectContext() {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     const [injection] = await chrome.scripting.executeScript({
       target: { tabId: tab.id },
+      world: "MAIN", // reach the page's window.mx (Mendix client)
       func: readPageContext,
     });
     const ctx = injection.result;
 
     // Derive the friendly values from the raw context.
     const env = guessEnvironment(ctx.url);
-    const lang = guessLanguage(ctx);
+    // Prefer the Mendix locale (e.g. ar_AE) when present; else guess from dir/lang.
+    const lang = ctx.mendixLocale
+      ? ctx.mendixLocale.toLowerCase().indexOf("ar") === 0
+        ? "Arabic"
+        : "English"
+      : guessLanguage(ctx);
     const browser = shortBrowser(ctx.userAgent);
+    const page = ctx.mendixPage || ctx.title; // Mendix page path, else the tab title
     detectedEnv = env;
     detectedLang = lang;
 
-    // Build a Textile block for the bug description...
+    // Build a Textile block for the bug description (Mendix lines only if present).
     const lines = [
       "h3. Environment (auto-captured)",
       "* URL: " + ctx.url,
-      "* Page: " + ctx.title,
+      "* Page: " + page,
+      ctx.mendixPageTitle ? "* Page title: " + ctx.mendixPageTitle : null,
       "* Environment: " + env,
       "* Language: " + lang,
       ctx.mendixVersion ? "* Mendix version: " + ctx.mendixVersion : null,
+      ctx.mendixLocale ? "* Mendix locale: " + ctx.mendixLocale : null,
+      ctx.mendixUser ? "* Mendix user: " + ctx.mendixUser : null,
       "* Browser: " + browser,
       "* Viewport: " + ctx.viewport,
     ].filter(Boolean);
@@ -323,6 +369,8 @@ async function detectContext() {
     // ...and a shorter version to show the tester in the popup.
     contextBox.textContent =
       env + " · " + lang + (ctx.mendixVersion ? " · Mendix " + ctx.mendixVersion : "") +
+      "\nPage: " + page +
+      (ctx.mendixUser ? "\nUser: " + ctx.mendixUser : "") +
       "\n" + browser + " · " + ctx.viewport + "\n" + ctx.url;
   } catch (e) {
     contextText = "";
@@ -660,6 +708,7 @@ function captureTab() {
 }
 
 captureButton.addEventListener("click", async () => {
+  successBox.style.display = "none";
   statusText.textContent = "Capturing screenshot…";
   const dataUrl = await captureTab();
   if (!dataUrl) {
@@ -790,6 +839,7 @@ fileButton.addEventListener("click", async () => {
     statusText.textContent = "Pick a project first.";
     return;
   }
+  successBox.style.display = "none";
 
   // Use the annotated screenshot if one was captured, else grab a fresh one.
   let dataUrl = annotatedDataUrl();
@@ -849,9 +899,40 @@ fileButton.addEventListener("click", async () => {
   });
 
   if (result && result.ok) {
-    statusText.innerHTML =
-      'Filed! <a href="' + result.url + '" target="_blank">Open #' + result.id + "</a>";
+    statusText.textContent = "";
+    showSuccess(result.id, result.url);
+    resetForm();
   } else {
     statusText.textContent = "Error: " + (result ? result.error : "no response");
   }
 });
+
+// Play the success animation and show the link to the new bug.
+function showSuccess(id, url) {
+  successLink.textContent = "Open #" + id;
+  successLink.href = url;
+  successBox.style.display = "flex";
+  // Restart the CSS animations (they only run on first render otherwise).
+  successBox.style.animation = "none";
+  void successBox.offsetWidth;
+  successBox.style.animation = "";
+  successBox.querySelectorAll("circle, path").forEach((el) => {
+    el.style.animation = "none";
+    void el.offsetWidth;
+    el.style.animation = "";
+  });
+}
+
+// Clear the per-bug inputs for the next report; keep project + classification.
+function resetForm() {
+  titleInput.value = "";
+  notesEditor.innerHTML = "";
+  pickedInfo = null;
+  pickedBox.style.display = "none";
+  pickedBox.textContent = "";
+  annImage = null;
+  shapes = [];
+  annotateBox.style.display = "none";
+  dupesBox.classList.remove("show");
+  dupesBox.innerHTML = "";
+}

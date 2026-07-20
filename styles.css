@@ -348,6 +348,44 @@ select option:hover {
 .status a:hover { text-decoration: underline; }
 @keyframes fade { from { opacity: 0; } to { opacity: 1; } }
 
+/* ---- Success animation ------------------------------------------------ */
+#success {
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: var(--sp-3) 0;
+  animation: pop 0.3s var(--ease);
+}
+#success .check { width: 54px; height: 54px; }
+#success .check circle {
+  fill: none;
+  stroke: var(--red);
+  stroke-width: 3;
+  stroke-dasharray: 145;
+  stroke-dashoffset: 145;
+  animation: draw 0.5s var(--ease) forwards;
+}
+#success .check path {
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 4;
+  stroke-linecap: square;
+  stroke-dasharray: 40;
+  stroke-dashoffset: 40;
+  animation: draw 0.35s 0.35s var(--ease) forwards;
+}
+#success .success-msg {
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+}
+#success a { color: var(--red); font-weight: 700; text-decoration: none; }
+#success a:hover { text-decoration: underline; }
+@keyframes draw { to { stroke-dashoffset: 0; } }
+@keyframes pop { from { opacity: 0; transform: scale(0.9); } to { opacity: 1; transform: none; } }
+
 /* ---- Screenshot capture + annotation ---------------------------------- */
 #annotate { margin-top: var(--sp-1); }
 .tools { display: flex; gap: 6px; margin-bottom: 6px; }
