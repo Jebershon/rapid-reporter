@@ -12,6 +12,7 @@
       </header>
 
       <div class="card">
+        <div id="form">
         <div class="field">
           <label for="title">Bug title</label>
           <input id="title" type="text" value="[TEST] Rapid Reporter smoke test" />
@@ -106,6 +107,7 @@
         <button id="file" class="btn btn-primary btn-block">File bug</button>
 
         <p id="status" class="status"></p>
+        </div>
 
         <div id="success" style="display: none">
           <svg class="check" viewBox="0 0 52 52" aria-hidden="true">
@@ -114,6 +116,7 @@
           </svg>
           <div class="success-msg">Bug filed</div>
           <a id="successLink" href="#" target="_blank">Open</a>
+          <button id="newBug" class="btn btn-primary btn-block" type="button">File new bug</button>
         </div>
       </div>
     </div>

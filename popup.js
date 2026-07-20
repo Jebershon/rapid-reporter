@@ -21,6 +21,8 @@ const fileButton = document.getElementById("file");
 const statusText = document.getElementById("status");
 const successBox = document.getElementById("success");
 const successLink = document.getElementById("successLink");
+const formBox = document.getElementById("form");
+const newBugButton = document.getElementById("newBug");
 
 // Holds the Textile block we build from the page context, to attach when filing.
 let contextText = "";
@@ -900,11 +902,19 @@ fileButton.addEventListener("click", async () => {
 
   if (result && result.ok) {
     statusText.textContent = "";
+    formBox.style.display = "none"; // hide the whole form; show only the success state
     showSuccess(result.id, result.url);
-    resetForm();
   } else {
     statusText.textContent = "Error: " + (result ? result.error : "no response");
   }
+});
+
+// "File new bug" — clear the form and bring it back for the next report.
+newBugButton.addEventListener("click", () => {
+  resetForm();
+  successBox.style.display = "none";
+  formBox.style.display = "";
+  titleInput.focus();
 });
 
 // Play the success animation and show the link to the new bug.
