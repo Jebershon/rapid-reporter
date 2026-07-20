@@ -26,6 +26,8 @@ const newBugButton = document.getElementById("newBug");
 
 // Holds the Textile block we build from the page context, to attach when filing.
 let contextText = "";
+// The structured page context (for the machine-readable rapid-reporter.json).
+let pageContext = null;
 // Auto-detected values, used to pre-select matching custom fields.
 let detectedEnv = "";
 let detectedLang = "";
@@ -185,6 +187,17 @@ function pickElement() {
       box.remove();
       hint.remove();
     }
+    function widgetPath(el) {
+      // Mendix stamps the full page-widget path onto ids / data-button-id, e.g.
+      // "p.Module_UI.MyPage.btnSave" — a dev can jump straight to it in Studio Pro.
+      let n = el;
+      while (n && n.getAttribute) {
+        const b = n.getAttribute("data-button-id") || (n.id && n.id.indexOf("p.") === 0 ? n.id : "");
+        if (b) return b;
+        n = n.parentElement;
+      }
+      return "";
+    }
     function click(e) {
       e.preventDefault();
       e.stopPropagation();
@@ -194,6 +207,8 @@ function pickElement() {
       const info = {
         tag: el.tagName.toLowerCase(),
         mxName: mxName(el),
+        widgetPath: widgetPath(el),
+        html: (el.outerHTML || "").replace(/\s+/g, " ").trim().slice(0, 600),
         selector: selectorFor(el),
         text: (el.textContent || "").trim().replace(/\s+/g, " ").slice(0, 60),
         rect: Math.round(r.width) + "x" + Math.round(r.height) + " @ (" + Math.round(r.left) + "," + Math.round(r.top) + ")",
@@ -230,12 +245,13 @@ function formatElementBlock(info) {
   return [
     "h3. Picked element",
     "* Element: " + (info.text ? "'" + info.text + "' " : "") + info.tag + (info.mxName ? "  (mx-name: " + info.mxName + ")" : ""),
+    info.widgetPath ? "* Mendix widget: @" + info.widgetPath + "@" : null,
     "* Selector: @" + info.selector + "@",
     "* Size/pos: " + info.rect,
     "* Styles: display=" + s.display + ", position=" + s.position + ", direction=" + s.direction +
       ", color=" + s.color + ", background=" + s.background + ", font=" + s.font +
       ", margin=" + s.margin + ", padding=" + s.padding,
-  ].join("\n");
+  ].filter(Boolean).join("\n");
 }
 
 async function checkDuplicates() {
@@ -325,6 +341,26 @@ function readPageContext() {
       } catch (e) {}
     }
   } catch (e) {}
+
+  // Derive the page from Mendix widget ids (p.<Module>.<Page>.<widget>) — this is
+  // concrete and version-independent, so prefer it as the page name. The main
+  // content page is whichever Module.Page prefix owns the most widgets on screen.
+  try {
+    var wEls = document.querySelectorAll('[data-button-id^="p."], [id^="p."]');
+    var wCounts = {};
+    for (var wi = 0; wi < wEls.length; wi++) {
+      var wRaw = wEls[wi].getAttribute("data-button-id") || wEls[wi].id || "";
+      var wParts = wRaw.replace(/^p\./, "").split(".");
+      if (wParts.length >= 3) {
+        var wPage = wParts[0] + "." + wParts[1];
+        wCounts[wPage] = (wCounts[wPage] || 0) + 1;
+      }
+    }
+    var wBest = 0, wName = "";
+    for (var wk in wCounts) if (wCounts[wk] > wBest) { wBest = wCounts[wk]; wName = wk; }
+    if (wName) { ctx.mendixPage = wName; ctx.isMendix = true; }
+  } catch (e) {}
+
   return ctx;
 }
 
@@ -368,6 +404,23 @@ async function detectContext() {
     ].filter(Boolean);
     contextText = lines.join("\n");
 
+    // Keep the structured version too, for the rapid-reporter.json fix packet.
+    pageContext = {
+      url: ctx.url,
+      title: ctx.title,
+      page: page,
+      pageTitle: ctx.mendixPageTitle || "",
+      isMendix: !!ctx.isMendix,
+      mendixVersion: ctx.mendixVersion || "",
+      mendixLocale: ctx.mendixLocale || "",
+      mendixUser: ctx.mendixUser || "",
+      environment: env,
+      language: lang,
+      browser: browser,
+      viewport: ctx.viewport,
+      userAgent: ctx.userAgent,
+    };
+
     // ...and a shorter version to show the tester in the popup.
     contextBox.textContent =
       env + " · " + lang + (ctx.mendixVersion ? " · Mendix " + ctx.mendixVersion : "") +
@@ -376,6 +429,7 @@ async function detectContext() {
       "\n" + browser + " · " + ctx.viewport + "\n" + ctx.url;
   } catch (e) {
     contextText = "";
+    pageContext = null;
     contextBox.textContent = "Auto-capture not available on this page.";
   }
 }
@@ -478,9 +532,13 @@ function formatConsole(logs) {
 }
 
 // A short "top errors" block for the bug description (what a dev reads first).
+// Always renders — an explicit "none" is a finding (rules out a JS error), and
+// its absence would just look like the tool failed.
 function formatErrorsBlock(logs) {
   const errors = logs.filter((l) => l.level === "error").slice(-3);
-  if (!errors.length) return "";
+  if (!errors.length) {
+    return "h3. Console errors\n_None captured._";
+  }
   const lines = ["h3. Console errors (last " + errors.length + ")", "<pre>"];
   errors.forEach((e) => lines.push(redact(e.text)));
   lines.push("</pre>");
@@ -518,7 +576,13 @@ function formatNetwork(net) {
     return "(No network requests captured — reload the app page before reproducing so capture starts at page load.)";
   }
   return net
-    .map((n) => "[" + (n.status || "ERR") + "] " + n.method + " " + redact(n.url) + " (" + n.ms + "ms)" + (n.action ? "  action=" + n.action : ""))
+    .map(
+      (n) =>
+        "[" + (n.status || "ERR") + "] " + n.method + " " + redact(n.url) + " (" + n.ms + "ms)" +
+        (n.action ? "  action=" + n.action : "") +
+        (n.entity ? " entity=" + n.entity : "") +
+        (n.raw ? "\n    payload: " + redact(n.raw) : "")
+    )
     .join("\n");
 }
 
@@ -557,12 +621,88 @@ function formatSteps(actions) {
 // The failed requests (4xx/5xx or network error), for the bug description.
 function formatFailedBlock(net) {
   const failed = net.filter((n) => !n.status || n.status >= 400).slice(-5);
-  if (!failed.length) return "";
+  if (!failed.length) {
+    return net.length
+      ? "h3. Failed network calls\n_None — every request returned a success status._"
+      : "h3. Failed network calls\n_No network activity captured — reload the app page before reproducing._";
+  }
   const lines = ["h3. Failed network calls (" + failed.length + ")"];
   failed.forEach((n) =>
     lines.push("* " + (n.status || "ERR") + " " + n.method + " " + redact(n.url) + (n.action ? "  (action: " + n.action + ")" : ""))
   );
   return lines.join("\n");
+}
+
+// The Mendix microflows / nanoflows that ran, pulled from the /xas/ action names
+// (module-qualified names like "Module.MF_DoThing"). This is usually the single
+// most useful signal for a Mendix developer, so it goes in the description body,
+// in call order, with the status and timing of each.
+function formatMicroflows(net) {
+  const flows = net.filter((n) => n.action && n.action.indexOf(".") > 0);
+  if (!flows.length) {
+    return net.length
+      ? "h3. Microflows / nanoflows called\n_None — no microflow/nanoflow ran during this session (only data retrieval)._"
+      : "h3. Microflows / nanoflows called\n_No network activity captured — reload the app page before reproducing so capture starts at page load._";
+  }
+  const shown = flows.slice(-15);
+  const head =
+    "h3. Microflows / nanoflows called (" +
+    flows.length +
+    (flows.length > shown.length ? ", last " + shown.length + " shown" : "") +
+    ")";
+  const lines = [head];
+  shown.forEach((n) =>
+    lines.push(
+      "# *" + n.action + "* — " + (n.status || "ERR") + (n.ms != null ? " · " + n.ms + " ms" : "")
+    )
+  );
+  return lines.join("\n");
+}
+
+// The /xas/ calls that aren't microflows — retrieve/commit/changes — so a dev can
+// see what data the page loaded (and the entity), and whether any of it failed.
+function isDataXas(n) {
+  return (n.url || "").indexOf("/xas") !== -1 && (!n.action || n.action.indexOf(".") < 0);
+}
+function formatDataCalls(net) {
+  const calls = net.filter(isDataXas);
+  if (!calls.length) return "";
+  const shown = calls.slice(-15);
+  const head =
+    "h3. Data / retrieval xas calls (" +
+    calls.length +
+    (calls.length > shown.length ? ", last " + shown.length + " shown" : "") +
+    ")";
+  const lines = [head];
+  shown.forEach((n) =>
+    lines.push(
+      "# " + (n.action || "xas") + (n.entity ? " *" + n.entity + "*" : "") +
+        " — " + (n.status || "ERR") + (n.ms != null ? " · " + n.ms + " ms" : "")
+    )
+  );
+  return lines.join("\n");
+}
+
+// A one-glance pointer for a developer reading the ticket by hand: the failing
+// microflow and/or the first console error — where to start looking. Only shown
+// when there's an actual signal, so it never adds noise to a clean report.
+function formatLikelyCause(net, logs) {
+  const bits = [];
+  const failedFlow = net.find(
+    (n) => n.action && n.action.indexOf(".") > 0 && (!n.status || n.status >= 400)
+  );
+  if (failedFlow) {
+    bits.push(
+      "* Microflow *" + failedFlow.action + "* returned " +
+        (failedFlow.status || "no response") + " — start here."
+    );
+  }
+  const err = logs.find((l) => l.level === "error");
+  if (err) bits.push("* Console error: " + redact(err.text).split("\n")[0].slice(0, 160));
+  if (!bits.length) {
+    return "h3. Likely cause (auto)\n_No failing microflow or console error detected — likely a UI/content issue; see the screenshot and steps above._";
+  }
+  return "h3. Likely cause (auto)\n" + bits.join("\n");
 }
 
 // Reload the dropdowns that depend on the chosen project.
@@ -788,11 +928,27 @@ function canvasXY(e) {
   };
 }
 
+let panning = null;     // active drag-to-pan state when the Pan tool is selected
+
 shotCanvas.addEventListener("mousedown", (e) => {
+  if (tool === "pan") {
+    // Grab the zoomed image and drag it around inside its scroll box.
+    const wrap = shotCanvas.parentElement;
+    panning = { x: e.clientX, y: e.clientY, sl: wrap.scrollLeft, st: wrap.scrollTop };
+    shotCanvas.style.cursor = "grabbing";
+    e.preventDefault();
+    return;
+  }
   const p = canvasXY(e);
   drawing = { type: tool, x: p.x, y: p.y, w: 0, h: 0 };
 });
 shotCanvas.addEventListener("mousemove", (e) => {
+  if (panning) {
+    const wrap = shotCanvas.parentElement;
+    wrap.scrollLeft = panning.sl - (e.clientX - panning.x);
+    wrap.scrollTop = panning.st - (e.clientY - panning.y);
+    return;
+  }
   if (!drawing) return;
   const p = canvasXY(e);
   drawing.w = p.x - drawing.x;
@@ -800,6 +956,11 @@ shotCanvas.addEventListener("mousemove", (e) => {
   redraw(drawing);
 });
 window.addEventListener("mouseup", () => {
+  if (panning) {
+    panning = null;
+    shotCanvas.style.cursor = tool === "pan" ? "grab" : "crosshair";
+    return;
+  }
   if (!drawing) return;
   if (Math.abs(drawing.w) > 3 || Math.abs(drawing.h) > 3) shapes.push(drawing);
   drawing = null;
@@ -811,6 +972,7 @@ document.querySelectorAll(".tool[data-tool]").forEach((btn) => {
     tool = btn.dataset.tool;
     document.querySelectorAll(".tool[data-tool]").forEach((b) => b.classList.remove("active"));
     btn.classList.add("active");
+    shotCanvas.style.cursor = tool === "pan" ? "grab" : "crosshair";
   });
 });
 document.getElementById("undo").addEventListener("click", () => {
@@ -866,6 +1028,8 @@ fileButton.addEventListener("click", async () => {
   const net = await captureNetwork();
   const networkText = formatNetwork(net);
   const failedBlock = formatFailedBlock(net);
+  const microflowBlock = formatMicroflows(net);
+  const dataCallsBlock = formatDataCalls(net);
 
   let domHtml = null;
   if (includeDomCheck.checked) {
@@ -874,12 +1038,56 @@ fileButton.addEventListener("click", async () => {
   }
 
   const elementBlock = formatElementBlock(pickedInfo);
-  const fullContext =
-    (stepsBlock ? stepsBlock + "\n\n" : "") +
-    (elementBlock ? elementBlock + "\n\n" : "") +
-    contextText +
-    (errorsBlock ? "\n\n" + errorsBlock : "") +
-    (failedBlock ? "\n\n" + failedBlock : "");
+
+  // A machine-readable fix packet — everything a developer (or Claude, via the
+  // Redmine MCP's get_attachment_text) needs to locate and fix the bug, in one
+  // structured file rather than scattered across prose.
+  const fixPacket = {
+    tool: "rapid-reporter",
+    version: chrome.runtime.getManifest().version,
+    filedAt: new Date().toISOString(),
+    title: subject,
+    page: pageContext || {},
+    steps: actions.map((a) => redact(a.step)),
+    microflows: net
+      .filter((n) => n.action && n.action.indexOf(".") > 0)
+      .map((n) => ({ name: n.action, status: n.status, ms: n.ms, payload: redact(n.raw || "") })),
+    dataCalls: net
+      .filter(isDataXas)
+      .map((n) => ({ action: n.action || "xas", entity: n.entity || "", status: n.status, ms: n.ms, payload: redact(n.raw || "") })),
+    failedCalls: net
+      .filter((n) => !n.status || n.status >= 400)
+      .map((n) => ({ method: n.method, url: redact(n.url), status: n.status, action: n.action || "", ms: n.ms })),
+    consoleErrors: logs.filter((l) => l.level === "error").map((l) => redact(l.text)).slice(-20),
+    pickedElement: pickedInfo
+      ? {
+          tag: pickedInfo.tag,
+          text: pickedInfo.text,
+          mxName: pickedInfo.mxName || "",
+          widgetPath: pickedInfo.widgetPath || "",
+          selector: pickedInfo.selector,
+          html: redact(pickedInfo.html || ""),
+          styles: pickedInfo.styles || {},
+        }
+      : null,
+  };
+
+  // Human-readable report, ordered the way a developer fixing it by hand reads:
+  // where it happened, how to reproduce, the likely cause, then the supporting
+  // detail. (The rapid-reporter.json packet is the separate machine path.)
+  const likelyBlock = formatLikelyCause(net, logs);
+  const fullContext = [
+    contextText,     // Environment — where
+    stepsBlock,      // Steps to reproduce — how
+    likelyBlock,     // Likely cause — start here
+    elementBlock,    // Picked element
+    errorsBlock,     // Console errors (with stack traces)
+    microflowBlock,  // Microflows / nanoflows called
+    dataCallsBlock,  // Data / retrieval xas calls
+    failedBlock,     // Failed network calls
+  ]
+    .filter(Boolean)
+    .join("\n\n");
 
   statusText.textContent = "Filing the bug in Redmine…";
 
@@ -898,6 +1106,7 @@ fileButton.addEventListener("click", async () => {
     domHtml: domHtml,
     consoleText: consoleText,
     networkText: networkText,
+    fixPacket: fixPacket,
   });
 
   if (result && result.ok) {

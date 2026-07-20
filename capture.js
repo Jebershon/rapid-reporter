@@ -14,6 +14,9 @@
 
   function safeStringify(value) {
     try {
+      // Error objects don't JSON-serialize (they'd become "{}"), yet the stack
+      // trace is exactly what a developer needs — keep it verbatim.
+      if (value instanceof Error) return value.stack || value.name + ": " + value.message;
       return typeof value === "string" ? value : JSON.stringify(value);
     } catch (e) {
       return String(value);
@@ -41,11 +44,14 @@
 
   // Uncaught errors and unhandled promise rejections.
   window.addEventListener("error", function (e) {
-    var where = e.filename ? " @ " + e.filename + ":" + e.lineno : "";
-    push("error", [(e.message || "Error") + where]);
+    var where = e.filename ? " @ " + e.filename + ":" + e.lineno + ":" + (e.colno || 0) : "";
+    var stack = e.error && e.error.stack ? "\n" + e.error.stack : "";
+    push("error", [(e.message || "Error") + where + stack]);
   });
   window.addEventListener("unhandledrejection", function (e) {
-    push("error", ["Unhandled promise rejection: " + safeStringify(e.reason)]);
+    var r = e.reason;
+    var detail = r && r.stack ? r.stack : safeStringify(r);
+    push("error", ["Unhandled promise rejection: " + detail]);
   });
 
   // ---- Network buffer -----------------------------------------------------
@@ -61,22 +67,46 @@
   function nowMs() {
     return window.performance && performance.now ? performance.now() : Date.now();
   }
-  function mendixAction(url, body) {
-    if (!url || url.indexOf("/xas") === -1) return "";
+  // Turn a request body into the Mendix operation metadata a developer cares
+  // about: the action (microflow/nanoflow name or operation type), the entity it
+  // touched, and a short raw payload preview so the real operation is always
+  // recoverable — even when a Mendix version uses a body shape we don't yet parse.
+  function mendixBody(url, body) {
+    // Both the classic XAS client (/xas/) and the newer runtime client
+    // (/runtime/... , runtimeOperation envelope) are worth decoding.
+    if (!url || (url.indexOf("/xas") === -1 && url.indexOf("/runtime") === -1)) return null;
     var s = typeof body === "string" ? body : "";
     if (!s && body) {
       try {
         s = JSON.stringify(body);
       } catch (e) {}
     }
-    if (!s) return "";
-    // The microflow / nanoflow name lives in "actionname" regardless of how the
-    // /xas/ body is nested, so pull it out directly.
-    var m = s.match(/"actionname"\s*:\s*"([^"]+)"/);
-    if (m) return m[1];
-    // Fall back to the action type (retrieve, commit, executeaction, …).
-    var a = s.match(/"action"\s*:\s*"([^"]+)"/);
-    return a ? a[1] : "";
+    return s || "";
+  }
+  function mendixMeta(url, body) {
+    var s = mendixBody(url, body);
+    if (s == null) return { action: "", entity: "", raw: "" };
+    if (!s) return { action: "", entity: "", raw: "" };
+    // Microflow / nanoflow name. The classic client uses lowercase "actionname";
+    // the newer runtime client uses camelCase / different keys — accept them all,
+    // case-insensitively, wherever they sit in the (possibly nested) body.
+    var name = s.match(
+      /"(?:actionname|actionName|microflowName|nanoflowName|microflow|nanoflow)"\s*:\s*"([^"]+)"/i
+    );
+    var action = name ? name[1] : "";
+    if (!action) {
+      // Fall back to the operation/action type (retrieve_by_xpath, commit,
+      // runtimeOperation, keepalive, …).
+      var a = s.match(/"(?:action|operation|operationName|requestType|type)"\s*:\s*"([^"]+)"/i);
+      action = a ? a[1] : "";
+    }
+    // Entity (Module.Entity) — from an xpath (//Module.Entity) or a typed field.
+    var ent =
+      s.match(/\/\/([A-Za-z_]\w*\.[A-Za-z_]\w*)/) ||
+      s.match(/"(?:objectType|entity|entityName|entityType)"\s*:\s*"([A-Za-z_]\w*\.[A-Za-z_]\w*)"/i);
+    // A short, structural preview of the payload for verification (redacted in
+    // the popup before it's ever attached).
+    return { action: action, entity: ent ? ent[1] : "", raw: s.slice(0, 240) };
   }
 
   // Wrap fetch.
@@ -87,13 +117,14 @@
       var method = (init && init.method) || (input && input.method) || "GET";
       var body = init && init.body;
       var t0 = nowMs();
+      var meta = mendixMeta(url, body);
       return origFetch.apply(this, arguments).then(
         function (res) {
-          pushNet({ method: method, url: url, status: res.status, ms: Math.round(nowMs() - t0), action: mendixAction(url, body) });
+          pushNet({ method: method, url: url, status: res.status, ms: Math.round(nowMs() - t0), action: meta.action, entity: meta.entity, raw: meta.raw });
           return res;
         },
         function (err) {
-          pushNet({ method: method, url: url, status: 0, ms: Math.round(nowMs() - t0), action: mendixAction(url, body) });
+          pushNet({ method: method, url: url, status: 0, ms: Math.round(nowMs() - t0), action: meta.action, entity: meta.entity, raw: meta.raw });
           throw err;
         }
       );
@@ -113,8 +144,9 @@
       var self = this;
       var info = self.__rr || {};
       var t0 = nowMs();
+      var meta = mendixMeta(info.url || "", body);
       self.addEventListener("loadend", function () {
-        pushNet({ method: info.method, url: info.url, status: self.status, ms: Math.round(nowMs() - t0), action: mendixAction(info.url || "", body) });
+        pushNet({ method: info.method, url: info.url, status: self.status, ms: Math.round(nowMs() - t0), action: meta.action, entity: meta.entity, raw: meta.raw });
       });
       return send.apply(this, arguments);
     };
@@ -146,19 +178,22 @@
     if (!el || el.nodeType !== 1) return "an element";
     var tag = (el.tagName || "").toLowerCase();
     var role = el.getAttribute && el.getAttribute("role");
+    var isBtn =
+      tag === "button" || role === "button" || (el.classList && el.classList.contains("mx-button"));
     var kind =
-      tag === "button" || role === "button" ? "button"
+      isBtn ? "button"
         : tag === "a" ? "link"
         : tag === "input" || tag === "select" || tag === "textarea" ? "field"
-        : tag;
+        : tag === "label" ? "option"
+        : "";
     var label =
       (el.getAttribute &&
         (el.getAttribute("aria-label") || el.getAttribute("title") || el.getAttribute("placeholder"))) ||
       "";
+    // For buttons/links the visible text is the clearest name; strip icon alt/whitespace.
     var text = (el.textContent || "").trim().replace(/\s+/g, " ").slice(0, 40);
-    var mx = mxNameOf(el);
-    var name = label || text || mx;
-    return (name ? "'" + name + "' " : "") + kind + (mx && mx !== name ? " [" + mx + "]" : "");
+    var name = label || text || mxNameOf(el);
+    return (name ? "'" + name + "'" : "the element") + (kind ? " " + kind : "");
   }
   function fieldName(el) {
     var label = el.getAttribute && (el.getAttribute("aria-label") || el.getAttribute("placeholder"));
@@ -174,7 +209,13 @@
     "click",
     function (e) {
       var t = e.target;
-      var clickable = t.closest ? t.closest("button, a, [role=button]") || t : t;
+      // Only log clicks that land on something actionable — a button, link,
+      // menu item, or checkbox/radio label. Clicks on plain containers or text
+      // are noise and make the steps harder to read.
+      var clickable = t.closest
+        ? t.closest("button, a, [role=button], [role=menuitem], .mx-button, [data-button-id], [onclick]")
+        : null;
+      if (!clickable) return;
       pushAction("Clicked " + describe(clickable));
     },
     true

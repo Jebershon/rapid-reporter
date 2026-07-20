@@ -198,7 +198,7 @@ async function uploadFile(cfg, filename, bytes) {
   return (await res.json()).upload.token;
 }
 
-async function fileBug({ dataUrl, projectId, subject, trackerId, priorityId, severity, assignedToId, contextText, notes, customFields, domHtml, consoleText, networkText }) {
+async function fileBug({ dataUrl, projectId, subject, trackerId, priorityId, severity, assignedToId, contextText, notes, customFields, domHtml, consoleText, networkText, fixPacket }) {
   try {
     const cfg = await getConfig();
     if (!cfg) return { ok: false, error: "Set Redmine URL and API key in Options first." };
@@ -242,11 +242,31 @@ async function fileBug({ dataUrl, projectId, subject, trackerId, priorityId, sev
       });
     }
 
+    // Machine-readable fix packet — the one attachment a developer or Claude
+    // (via the Redmine MCP's get_attachment_text) can parse to get everything
+    // structured: page, steps, microflows, failed calls, errors, picked widget.
+    if (fixPacket) {
+      const jsonBytes = new TextEncoder().encode(JSON.stringify(fixPacket, null, 2));
+      uploads.push({
+        token: await uploadFile(cfg, "rapid-reporter.json", jsonBytes),
+        filename: "rapid-reporter.json",
+        content_type: "application/json",
+      });
+    }
+
     // 2) build the issue from whatever the tester chose
+    // Ordered for a human reading the ticket: the tester's note, the screenshot,
+    // then the auto-captured detail (environment, steps, likely cause, logs).
+    // The rapid-reporter.json attachment is the separate machine-readable path.
     const description =
       (notes ? "h3. Description\n" + notes + "\n\n" : "") +
+      "!screenshot.png!\n\n" +
       (contextText ? contextText + "\n\n" : "") +
-      "!screenshot.png!\n\n_Filed by Rapid Reporter._";
+      "----\n\n" +
+      "_Filed by Rapid Reporter._ " +
+      (fixPacket
+        ? "_A machine-readable copy for Claude is attached as *rapid-reporter.json* (Redmine MCP @get_attachment_text@)._"
+        : "");
 
     // Severity (id=3) is always sent; the tester's other custom-field choices
     // (Defect Category, Service, Environment, …) come from the dynamic section.
