@@ -62,9 +62,18 @@
         <div id="customFields"></div>
 
         <div class="field">
-          <label for="notes">Description</label>
-          <textarea id="notes" dir="auto" rows="3"
-            placeholder="Optional — steps, expected result, or the correct Arabic text…"></textarea>
+          <label>Description</label>
+          <div class="rte">
+            <div class="rte-tools">
+              <button class="tool" data-cmd="bold" type="button" title="Bold" aria-label="Bold"><b>B</b></button>
+              <button class="tool" data-cmd="italic" type="button" title="Italic" aria-label="Italic"><i>I</i></button>
+              <button class="tool" data-cmd="underline" type="button" title="Underline" aria-label="Underline"><u>U</u></button>
+              <button class="tool" data-cmd="insertUnorderedList" type="button" title="Bullet list" aria-label="Bullet list">•</button>
+              <button class="tool" data-cmd="insertOrderedList" type="button" title="Numbered list" aria-label="Numbered list">1.</button>
+            </div>
+            <div id="notesEditor" class="rte-editor" contenteditable="true" dir="auto"
+              data-placeholder="Optional — steps, expected result, or the correct Arabic text…"></div>
+          </div>
         </div>
 
         <div class="field">
@@ -85,8 +94,10 @@
             <button class="tool" data-tool="arrow" type="button" title="Arrow" aria-label="Arrow">➜</button>
             <button class="tool" data-tool="redact" type="button" title="Redact" aria-label="Redact">▮</button>
             <button class="tool" id="undo" type="button" title="Undo" aria-label="Undo">↺</button>
+            <button class="tool" id="zoomOut" type="button" title="Zoom out" aria-label="Zoom out">−</button>
+            <button class="tool" id="zoomIn" type="button" title="Zoom in" aria-label="Zoom in">+</button>
           </div>
-          <canvas id="shot"></canvas>
+          <div class="canvas-wrap"><canvas id="shot"></canvas></div>
         </div>
 
         <button id="pick" class="btn btn-block" type="button">Pick element</button>

@@ -143,6 +143,54 @@ textarea {
   resize: vertical;
 }
 
+/* ---- Rich text editor (Description) ------------------------------------ */
+.rte {
+  border: var(--bw) solid var(--ink);
+  background: #fff;
+  transition: box-shadow var(--dur) var(--ease), border-color var(--dur) var(--ease);
+}
+.rte:focus-within {
+  border-color: var(--red);
+  box-shadow: var(--shadow-sm);
+}
+.rte-tools {
+  display: flex;
+  gap: 2px;
+  padding: 4px 6px;
+  background: var(--surface);
+  border-bottom: var(--bw) solid var(--ink);
+}
+.rte-tools .tool {
+  min-width: 26px;
+  height: 24px;
+  font-size: 12px;
+  border: none;
+  box-shadow: none;
+  background: transparent;
+}
+.rte-tools .tool:hover {
+  transform: none;
+  background: var(--bg);
+  color: var(--red);
+}
+.rte-editor {
+  min-height: 66px;
+  padding: 8px 10px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--ink);
+  outline: none;
+}
+.rte-editor:empty::before {
+  content: attr(data-placeholder);
+  color: var(--grey);
+}
+.rte-editor ul,
+.rte-editor ol {
+  margin: 4px 0;
+  padding-left: 20px;
+}
+
 /* Custom select — solid TRIANGLE chevron that flips open, plus a themed
  * option list. The closed control is fully ours; the native option popup is
  * OS-drawn, but Chromium honours these option colours so it matches the theme. */
@@ -318,13 +366,18 @@ select option:hover {
     color var(--dur) var(--ease);
 }
 #undo { min-width: auto; padding: 0 10px; }
+#zoomOut { margin-left: auto; }
 .tool:hover { transform: translate(-1px, -1px); }
 .tool.active { background: var(--red); color: var(--on-red); }
+.canvas-wrap {
+  overflow: auto;
+  max-height: 55vh;
+  border: var(--bw) solid var(--ink);
+  box-shadow: var(--shadow);
+}
 #shot {
   display: block;
   width: 100%;
-  border: var(--bw) solid var(--ink);
-  box-shadow: var(--shadow);
   cursor: crosshair;
 }
 

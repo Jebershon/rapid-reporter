@@ -7,7 +7,7 @@ const typeSelect = document.getElementById("type");
 const prioritySelect = document.getElementById("priority");
 const severitySelect = document.getElementById("severity");
 const assigneeSelect = document.getElementById("assignee");
-const notesInput = document.getElementById("notes");
+const notesEditor = document.getElementById("notesEditor");
 const customFieldsBox = document.getElementById("customFields");
 const dupesBox = document.getElementById("dupes");
 const contextBox = document.getElementById("context");
@@ -42,6 +42,57 @@ projectSelect.addEventListener("change", () => {
 
 // Warn about similar open bugs when the title is edited.
 titleInput.addEventListener("change", checkDuplicates);
+
+// ---- Rich text editor (Description) -------------------------------------
+
+// Toolbar: apply the formatting command without losing the selection.
+document.querySelectorAll(".rte-tools .tool[data-cmd]").forEach((btn) => {
+  btn.addEventListener("mousedown", (e) => e.preventDefault());
+  btn.addEventListener("click", () => {
+    notesEditor.focus();
+    document.execCommand(btn.dataset.cmd, false, null);
+  });
+});
+
+// Convert the editor's HTML to Redmine Textile (only the formats the toolbar
+// can produce). Returns "" for an empty editor.
+function htmlToTextile(el) {
+  const out = Array.from(el.childNodes).map(nodeToTextile).join("");
+  return out.replace(/\n{3,}/g, "\n\n").trim();
+}
+function nodeToTextile(node) {
+  if (node.nodeType === 3) return node.nodeValue; // text
+  if (node.nodeType !== 1) return "";
+  const inner = () => Array.from(node.childNodes).map(nodeToTextile).join("");
+  switch (node.tagName.toLowerCase()) {
+    case "b":
+    case "strong":
+      return "*" + inner() + "*";
+    case "i":
+    case "em":
+      return "_" + inner() + "_";
+    case "u":
+      return "+" + inner() + "+";
+    case "a":
+      return '"' + inner() + '":' + (node.getAttribute("href") || "");
+    case "br":
+      return "\n";
+    case "ul":
+      return Array.from(node.children).map((li) => "* " + inlineTextile(li)).join("\n") + "\n";
+    case "ol":
+      return Array.from(node.children).map((li) => "# " + inlineTextile(li)).join("\n") + "\n";
+    case "li":
+      return inlineTextile(node);
+    case "div":
+    case "p":
+      return inner() + "\n";
+    default:
+      return inner();
+  }
+}
+function inlineTextile(node) {
+  return Array.from(node.childNodes).map(nodeToTextile).join("").replace(/\n+/g, " ").trim();
+}
 
 // ---- Element picker (Step 4a) -------------------------------------------
 
@@ -596,6 +647,8 @@ let annImage = null;    // the captured screenshot as an Image
 let shapes = [];        // committed annotations
 let drawing = null;     // shape being drawn
 let tool = "box";       // box | arrow | redact
+let zoom = 1;           // canvas display zoom (1 = fit panel width)
+let fitWidth = 320;     // canvas display width at zoom 1
 
 // Take a screenshot of the active tab; returns a data URL or null.
 function captureTab() {
@@ -624,9 +677,19 @@ function startAnnotation(dataUrl) {
     shotCanvas.height = annImage.naturalHeight;
     shapes = [];
     annotateBox.style.display = "block";
+    zoom = 1;
+    fitWidth = shotCanvas.parentElement.clientWidth || 320;
+    applyZoom();
     redraw();
   };
   annImage.src = dataUrl;
+}
+
+// Set the canvas display size from the zoom level (internal resolution is
+// unchanged, so the exported image stays full-resolution).
+function applyZoom() {
+  shotCanvas.style.width = Math.round(fitWidth * zoom) + "px";
+  shotCanvas.style.height = "auto";
 }
 
 function redraw(inProgress) {
@@ -703,6 +766,14 @@ document.getElementById("undo").addEventListener("click", () => {
   shapes.pop();
   redraw();
 });
+document.getElementById("zoomIn").addEventListener("click", () => {
+  zoom = Math.min(4, zoom + 0.5);
+  applyZoom();
+});
+document.getElementById("zoomOut").addEventListener("click", () => {
+  zoom = Math.max(0.5, zoom - 0.5);
+  applyZoom();
+});
 
 // The annotated screenshot as a data URL, or null if none was captured.
 function annotatedDataUrl() {
@@ -770,7 +841,7 @@ fileButton.addEventListener("click", async () => {
     severity: severitySelect.value,
     assignedToId: assigneeSelect.value,
     contextText: fullContext,
-    notes: notesInput.value.trim(),
+    notes: htmlToTextile(notesEditor),
     customFields: collectCustomFields(),
     domHtml: domHtml,
     consoleText: consoleText,
