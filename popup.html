@@ -1,0 +1,62 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <style>
+      body { width: 320px; font-family: system-ui, sans-serif; padding: 12px; margin: 0; }
+      h1 { font-size: 15px; margin: 0 0 10px; }
+      label { display: block; font-size: 12px; font-weight: 600; margin: 8px 0 3px; }
+      input, select { width: 100%; padding: 7px; font-size: 13px; border: 1px solid #999; border-radius: 6px; box-sizing: border-box; background: #fff; }
+      button { width: 100%; margin-top: 12px; padding: 10px; font-size: 14px; cursor: pointer; border: 1px solid #888; border-radius: 6px; background: #f5f5f5; }
+      button:hover { background: #eaeaea; }
+      #context { font-size: 11px; color: #444; background: #f6f6f6; border: 1px solid #e2e2e2; border-radius: 6px; padding: 8px; white-space: pre-wrap; line-height: 1.5; }
+      label.check { display: flex; align-items: center; gap: 6px; font-weight: 400; font-size: 12px; margin-top: 10px; }
+      label.check input { width: auto; }
+      .warn { color: #a33; }
+      #status { font-size: 12px; color: #555; min-height: 16px; margin: 10px 0; }
+      #status a { color: #0969da; }
+      #preview { width: 100%; border: 1px solid #ddd; border-radius: 6px; display: none; }
+    </style>
+  </head>
+  <body>
+    <h1>Rapid Reporter</h1>
+
+    <label for="title">Bug title</label>
+    <input id="title" type="text" value="[TEST] Rapid Reporter smoke test" />
+
+    <label for="project">Project</label>
+    <select id="project"><option value="">Loading...</option></select>
+
+    <label for="type">Bug type</label>
+    <select id="type"><option value="">(enter a project first)</option></select>
+
+    <label for="priority">Priority</label>
+    <select id="priority"><option value="">Loading...</option></select>
+
+    <label for="severity">Severity</label>
+    <select id="severity">
+      <option>Critical</option>
+      <option selected>Major</option>
+      <option>Medium</option>
+      <option>Minor</option>
+    </select>
+
+    <label for="assignee">Assignee</label>
+    <select id="assignee"><option value="">(unassigned)</option></select>
+
+    <label>Auto-detected from the page</label>
+    <div id="context">Detecting…</div>
+
+    <label class="check">
+      <input type="checkbox" id="includeDom" />
+      Include DOM snapshot <span class="warn">(may contain personal data)</span>
+    </label>
+
+    <button id="file">Capture &amp; file test bug</button>
+
+    <p id="status"></p>
+    <img id="preview" />
+
+    <script src="popup.js"></script>
+  </body>
+</html>

@@ -1,0 +1,27 @@
+# Secrets / local config — never commit (the API key lives in chrome.storage, not
+# in files, but guard against any local env or notes files anyway)
+.env
+.env.*
+*.local
+secrets.*
+
+# Extension packaging output
+*.zip
+*.crx
+*.pem          # the private signing key — MUST never be committed
+dist/
+build/
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editors / IDEs
+.vscode/
+.idea/
+*.swp
+*~
+
+# Node (only if a build toolchain is added later)
+node_modules/
