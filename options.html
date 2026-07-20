@@ -2,51 +2,36 @@
 <html>
   <head>
     <meta charset="utf-8" />
-    <style>
-      body {
-        font-family: system-ui, sans-serif;
-        max-width: 460px;
-        margin: 30px auto;
-        padding: 0 16px;
-      }
-      h1 { font-size: 18px; }
-      label { display: block; margin: 16px 0 4px; font-weight: 600; font-size: 13px; }
-      input {
-        width: 100%;
-        padding: 8px;
-        font-size: 13px;
-        border: 1px solid #999;
-        border-radius: 6px;
-        box-sizing: border-box;
-      }
-      .hint { font-size: 12px; color: #666; margin-top: 4px; }
-      button {
-        margin-top: 20px;
-        padding: 9px 18px;
-        font-size: 14px;
-        cursor: pointer;
-        border: 1px solid #888;
-        border-radius: 6px;
-        background: #f5f5f5;
-      }
-      #status { margin-left: 12px; font-size: 13px; color: #1a7f37; }
-    </style>
+    <link rel="stylesheet" href="styles.css" />
   </head>
-  <body>
-    <h1>Rapid Reporter — Settings</h1>
+  <body class="options">
+    <div class="app">
+      <header class="app-header">
+        <img src="icons/icon-32.png" alt="" />
+        <h1>Rapid Reporter — Settings</h1>
+      </header>
 
-    <label for="url">Redmine URL</label>
-    <input id="url" type="text" placeholder="https://tracker.rapiddata.com" />
+      <div class="card">
+        <div class="field">
+          <label for="url">Redmine URL</label>
+          <input id="url" type="text" placeholder="https://tracker.rapiddata.com" />
+        </div>
 
-    <label for="key">Your Redmine API key</label>
-    <input id="key" type="password" placeholder="paste your 40-character key" />
-    <div class="hint">
-      Get it from Redmine → My account → API access key → Show. It's stored only on
-      this computer and is never put into the extension's code.
+        <div class="field">
+          <label for="key">Your Redmine API key</label>
+          <input id="key" type="password" placeholder="paste your 40-character key" />
+          <div class="hint">
+            Get it from Redmine → My account → API access key → Show. It's stored only
+            on this computer and is never put into the extension's code.
+          </div>
+        </div>
+
+        <div class="row">
+          <button id="save" class="btn btn-primary">Save</button>
+          <span id="status" class="status"></span>
+        </div>
+      </div>
     </div>
-
-    <button id="save">Save</button>
-    <span id="status"></span>
 
     <script src="options.js"></script>
   </body>

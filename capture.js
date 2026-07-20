@@ -113,6 +113,84 @@
     };
   }
 
-  // Expose both buffers so the popup can read them later.
-  window.__rapidReporter = { logs: logs, network: net };
+  // ---- Action trail (auto "steps to reproduce") --------------------------
+  // Records WHAT the tester did (clicked X, entered a field, navigated) — never
+  // the values they typed. For Mendix widgets it captures the mx-name.
+  var actions = [];
+  var ACTMAX = 30;
+  function pushAction(step) {
+    if (!step) return;
+    var last = actions[actions.length - 1];
+    if (last && last.step === step) return; // drop consecutive duplicates
+    actions.push({ step: step });
+    if (actions.length > ACTMAX) actions.shift();
+  }
+  function mxNameOf(el) {
+    var node = el;
+    while (node && node.classList) {
+      for (var i = 0; i < node.classList.length; i++) {
+        if (node.classList[i].indexOf("mx-name-") === 0) return node.classList[i].slice(8);
+      }
+      node = node.parentElement;
+    }
+    return "";
+  }
+  function describe(el) {
+    if (!el || el.nodeType !== 1) return "an element";
+    var tag = (el.tagName || "").toLowerCase();
+    var role = el.getAttribute && el.getAttribute("role");
+    var kind =
+      tag === "button" || role === "button" ? "button"
+        : tag === "a" ? "link"
+        : tag === "input" || tag === "select" || tag === "textarea" ? "field"
+        : tag;
+    var label =
+      (el.getAttribute &&
+        (el.getAttribute("aria-label") || el.getAttribute("title") || el.getAttribute("placeholder"))) ||
+      "";
+    var text = (el.textContent || "").trim().replace(/\s+/g, " ").slice(0, 40);
+    var mx = mxNameOf(el);
+    var name = label || text || mx;
+    return (name ? "'" + name + "' " : "") + kind + (mx && mx !== name ? " [" + mx + "]" : "");
+  }
+  function fieldName(el) {
+    var label = el.getAttribute && (el.getAttribute("aria-label") || el.getAttribute("placeholder"));
+    if (!label && el.id) {
+      var lab = document.querySelector('label[for="' + el.id + '"]');
+      if (lab) label = lab.textContent.trim();
+    }
+    if (!label) label = el.name || mxNameOf(el) || "field";
+    return "'" + String(label).replace(/\s+/g, " ").slice(0, 30) + "'";
+  }
+
+  document.addEventListener(
+    "click",
+    function (e) {
+      var t = e.target;
+      var clickable = t.closest ? t.closest("button, a, [role=button]") || t : t;
+      pushAction("Clicked " + describe(clickable));
+    },
+    true
+  );
+  document.addEventListener(
+    "change",
+    function (e) {
+      var tag = (e.target.tagName || "").toLowerCase();
+      if (tag === "select") pushAction("Changed " + fieldName(e.target));
+      else if (tag === "input" || tag === "textarea") pushAction("Entered text in " + fieldName(e.target));
+    },
+    true
+  );
+  function recordNav() { pushAction("Navigated to " + location.pathname + location.hash); }
+  var _pushState = history.pushState;
+  history.pushState = function () {
+    var r = _pushState.apply(this, arguments);
+    recordNav();
+    return r;
+  };
+  window.addEventListener("popstate", recordNav);
+  window.addEventListener("hashchange", recordNav);
+
+  // Expose all buffers so the popup can read them later.
+  window.__rapidReporter = { logs: logs, network: net, actions: actions };
 })();

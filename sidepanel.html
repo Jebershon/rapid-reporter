@@ -1,0 +1,103 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body class="panel">
+    <div class="app">
+      <header class="app-header">
+        <img src="icons/icon-32.png" alt="" />
+        <h1>Rapid Reporter</h1>
+      </header>
+
+      <div class="card">
+        <div class="field">
+          <label for="title">Bug title</label>
+          <input id="title" type="text" value="[TEST] Rapid Reporter smoke test" />
+        </div>
+
+        <div id="dupes"></div>
+
+        <div class="field">
+          <label for="project">Project</label>
+          <div class="select-wrap">
+            <select id="project"><option value="">Loading…</option></select>
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="type">Bug type</label>
+          <div class="select-wrap">
+            <select id="type"><option value="">(pick a project)</option></select>
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="priority">Priority</label>
+          <div class="select-wrap">
+            <select id="priority"><option value="">Loading…</option></select>
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="severity">Severity</label>
+          <div class="select-wrap">
+            <select id="severity">
+              <option>Critical</option>
+              <option selected>Major</option>
+              <option>Medium</option>
+              <option>Minor</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="assignee">Assignee</label>
+          <div class="select-wrap">
+            <select id="assignee"><option value="">(unassigned)</option></select>
+          </div>
+        </div>
+
+        <div id="customFields"></div>
+
+        <div class="field">
+          <label for="notes">Description</label>
+          <textarea id="notes" dir="auto" rows="3"
+            placeholder="Optional — steps, expected result, or the correct Arabic text…"></textarea>
+        </div>
+
+        <div class="field">
+          <label>Auto-detected from the page</label>
+          <div id="context" class="context">Detecting…</div>
+        </div>
+
+        <label class="switch">
+          <input type="checkbox" id="includeDom" />
+          <span class="track"><span class="knob"></span></span>
+          <span>Include DOM snapshot <span class="warn">(may contain personal data)</span></span>
+        </label>
+
+        <button id="capture" class="btn btn-block" type="button">Capture screenshot</button>
+        <div id="annotate" style="display: none">
+          <div class="tools">
+            <button class="tool" data-tool="box" type="button" title="Box" aria-label="Box">▭</button>
+            <button class="tool" data-tool="arrow" type="button" title="Arrow" aria-label="Arrow">➜</button>
+            <button class="tool" data-tool="redact" type="button" title="Redact" aria-label="Redact">▮</button>
+            <button class="tool" id="undo" type="button" title="Undo" aria-label="Undo">↺</button>
+          </div>
+          <canvas id="shot"></canvas>
+        </div>
+
+        <button id="pick" class="btn btn-block" type="button">Pick element</button>
+        <div id="picked" class="context" style="display: none"></div>
+
+        <button id="file" class="btn btn-primary btn-block">File bug</button>
+
+        <p id="status" class="status"></p>
+      </div>
+    </div>
+
+    <script src="popup.js"></script>
+  </body>
+</html>

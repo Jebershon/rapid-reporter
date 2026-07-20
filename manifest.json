@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Rapid Reporter",
-  "version": "0.0.11",
+  "version": "0.1.0",
   "description": "One click -> a complete Redmine bug: screenshot, DOM, console, network.",
 
   "icons": {
@@ -11,9 +11,9 @@
     "128": "icons/icon-128.png"
   },
 
-  "permissions": ["activeTab", "storage", "scripting"],
+  "permissions": ["activeTab", "storage", "scripting", "sidePanel"],
 
-  "host_permissions": ["https://tracker.rapiddata.com/*"],
+  "host_permissions": ["<all_urls>"],
 
   "options_page": "options.html",
 
@@ -30,8 +30,11 @@
     }
   ],
 
+  "side_panel": {
+    "default_path": "sidepanel.html"
+  },
+
   "action": {
-    "default_popup": "popup.html",
     "default_title": "Rapid Reporter",
     "default_icon": {
       "16": "icons/icon-16.png",

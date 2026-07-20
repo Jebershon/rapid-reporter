@@ -3,6 +3,11 @@
 //   GET_PRIORITIES -> priority levels (fills the Priority dropdown)
 //   FILE_BUG       -> upload the screenshot and create the bug
 
+// Open the side panel when the toolbar icon is clicked (instead of a popup).
+if (chrome.sidePanel && chrome.sidePanel.setPanelBehavior) {
+  chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(() => {});
+}
+
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === "GET_PROJECTS") {
     getProjects().then(sendResponse);
@@ -18,6 +23,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
   if (message.type === "GET_MEMBERS") {
     getMembers(message).then(sendResponse);
+    return true;
+  }
+  if (message.type === "GET_CUSTOM_FIELDS") {
+    getCustomFields(message).then(sendResponse);
+    return true;
+  }
+  if (message.type === "GET_SIMILAR") {
+    getSimilar(message).then(sendResponse);
     return true;
   }
   if (message.type === "FILE_BUG") {
@@ -101,6 +114,74 @@ async function getMembers({ projectId }) {
   }
 }
 
+// Discover a project's custom fields by sampling its recent issues — which
+// fields it uses and the values actually in use. Redmine restricts the clean
+// /custom_fields.json endpoint to admins, so this is the non-admin way to build
+// the dropdowns. Severity (id=3) is skipped — it has its own dedicated dropdown.
+async function getCustomFields({ projectId }) {
+  try {
+    const cfg = await getConfig();
+    if (!cfg) return { ok: false, error: "Set your API key in Options first." };
+    const res = await fetch(
+      cfg.base +
+        "/issues.json?project_id=" +
+        encodeURIComponent(projectId) +
+        "&status_id=*&sort=updated_on:desc&limit=80",
+      { headers: { "X-Redmine-API-Key": cfg.apiKey } }
+    );
+    if (!res.ok) return { ok: false, error: "HTTP " + res.status };
+
+    const issues = (await res.json()).issues || [];
+    const byId = {}; // id -> { id, name, multiple, values:Set }
+    for (const issue of issues) {
+      for (const cf of issue.custom_fields || []) {
+        if (cf.id === 3) continue; // Severity has its own control
+        if (!byId[cf.id]) {
+          byId[cf.id] = { id: cf.id, name: cf.name, multiple: !!cf.multiple, values: new Set() };
+        }
+        const v = cf.value;
+        if (Array.isArray(v)) v.forEach((x) => x && byId[cf.id].values.add(String(x)));
+        else if (v) byId[cf.id].values.add(String(v));
+      }
+    }
+    const fields = Object.values(byId)
+      .map((f) => ({ id: f.id, name: f.name, multiple: f.multiple, values: [...f.values].sort() }))
+      .filter((f) => f.values.length > 0);
+    return { ok: true, fields: fields };
+  } catch (e) {
+    return { ok: false, error: String(e) };
+  }
+}
+
+// Full-text search for similar OPEN issues in the project, to warn about
+// possible duplicates before filing.
+async function getSimilar({ projectId, query }) {
+  try {
+    const cfg = await getConfig();
+    if (!cfg) return { ok: false, error: "Set your API key in Options first." };
+    const url =
+      cfg.base +
+      "/projects/" +
+      encodeURIComponent(projectId) +
+      "/search.json?q=" +
+      encodeURIComponent(query) +
+      "&issues=1&open_issues=1&limit=6";
+    const res = await fetch(url, { headers: { "X-Redmine-API-Key": cfg.apiKey } });
+    if (!res.ok) return { ok: false, error: "HTTP " + res.status };
+
+    const results = (await res.json()).results || [];
+    const mapped = results
+      .map((r) => {
+        const m = (r.url || "").match(/\/issues\/(\d+)/);
+        return { id: m ? m[1] : "", title: (r.title || "").slice(0, 90), url: cfg.base + (r.url || "") };
+      })
+      .filter((r) => r.id);
+    return { ok: true, results: mapped };
+  } catch (e) {
+    return { ok: false, error: String(e) };
+  }
+}
+
 // Upload one file to Redmine and return its token.
 async function uploadFile(cfg, filename, bytes) {
   const res = await fetch(cfg.base + "/uploads.json?filename=" + encodeURIComponent(filename), {
@@ -112,7 +193,7 @@ async function uploadFile(cfg, filename, bytes) {
   return (await res.json()).upload.token;
 }
 
-async function fileBug({ dataUrl, projectId, subject, trackerId, priorityId, severity, assignedToId, contextText, domHtml, consoleText, networkText }) {
+async function fileBug({ dataUrl, projectId, subject, trackerId, priorityId, severity, assignedToId, contextText, notes, customFields, domHtml, consoleText, networkText }) {
   try {
     const cfg = await getConfig();
     if (!cfg) return { ok: false, error: "Set Redmine URL and API key in Options first." };
@@ -158,14 +239,20 @@ async function fileBug({ dataUrl, projectId, subject, trackerId, priorityId, sev
 
     // 2) build the issue from whatever the tester chose
     const description =
+      (notes ? "h3. Description\n" + notes + "\n\n" : "") +
       (contextText ? contextText + "\n\n" : "") +
       "!screenshot.png!\n\n_Filed by Rapid Reporter._";
+
+    // Severity (id=3) is always sent; the tester's other custom-field choices
+    // (Defect Category, Service, Environment, …) come from the dynamic section.
+    const cfs = [{ id: 3, value: severity || "Major" }];
+    if (Array.isArray(customFields)) cfs.push(...customFields);
 
     const issue = {
       project_id: projectId,
       subject: subject,
       description: description,
-      custom_fields: [{ id: 3, value: severity || "Major" }], // Severity (id=3)
+      custom_fields: cfs,
       uploads: uploads,
     };
     if (trackerId) issue.tracker_id = Number(trackerId);

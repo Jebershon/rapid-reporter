@@ -1,0 +1,393 @@
+/* Rapid Reporter — Bauhaus design system
+ * ------------------------------------------------------------------
+ * Flat, geometric, high-contrast. Cream beige surface, one red accent,
+ * grey/ink for structure. Thick borders, hard offset shadows (no blur),
+ * square containers with circle/triangle geometric primitives, bold
+ * geometric sans typography on a strict grid.
+ *
+ * Pure presentation — no element IDs or logic are touched. Shared by
+ * sidepanel.html and options.html.
+ */
+
+/* ---- Design tokens ---------------------------------------------------- */
+:root {
+  color-scheme: light; /* the cream palette is the identity — no auto dark */
+
+  /* The three colours */
+  --bg: #f1ede4;         /* soft light cream — reduced beige     */
+  --surface: #faf8f2;    /* near-white cream for cards           */
+  --red: #e23a2e;        /* the single bold accent              */
+  --red-dark: #b02a21;   /* pressed / active red                */
+  --ink: #1c1c1a;        /* near-black — text, borders, lines   */
+  --grey: #55534d;       /* muted text / secondary              */
+
+  --on-red: #f7f2e6;     /* text on a red fill                  */
+
+  /* Hard, blur-free offset shadows (a modernist hallmark) */
+  --shadow: 4px 4px 0 var(--ink);
+  --shadow-sm: 2px 2px 0 var(--ink);
+  --shadow-lift: 6px 6px 0 var(--ink);
+
+  /* Geometry — square by default */
+  --r: 0px;
+  --bw: 2px;             /* border weight */
+
+  /* Spacing (grid) */
+  --sp-1: 6px;
+  --sp-2: 10px;
+  --sp-3: 14px;
+  --sp-4: 18px;
+  --sp-5: 24px;
+
+  /* Motion — crisp */
+  --ease: cubic-bezier(0.2, 0, 0, 1);
+  --dur: 180ms;
+
+  --font: "Century Gothic", "Futura", "Trebuchet MS", system-ui, sans-serif;
+}
+
+/* ---- Base ------------------------------------------------------------- */
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: var(--font);
+  background: var(--bg);
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
+}
+body.popup { width: 340px; padding: var(--sp-4); }
+body.panel { width: 100%; min-height: 100vh; padding: var(--sp-4); }
+body.options { max-width: 520px; margin: 0 auto; padding: var(--sp-5) var(--sp-4); }
+
+.app { animation: enter var(--dur) var(--ease) both; }
+@keyframes enter {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+
+/* ---- Header ----------------------------------------------------------- */
+.app-header {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding-bottom: var(--sp-2);
+  margin-bottom: var(--sp-4);
+  border-bottom: 3px solid var(--red); /* Bauhaus colour bar */
+}
+.app-header img {
+  width: 28px;
+  height: 28px;
+}
+.app-header h1 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1.2px;
+}
+
+/* ---- Card ------------------------------------------------------------- */
+.card {
+  background: var(--surface);
+  border: var(--bw) solid var(--ink);
+  border-radius: var(--r);
+  box-shadow: var(--shadow);
+  padding: var(--sp-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+/* ---- Fields & labels -------------------------------------------------- */
+.field { display: flex; flex-direction: column; gap: var(--sp-1); }
+
+label {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--grey);
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+}
+
+/* ---- Inputs, selects, textareas, panels ------------------------------- */
+input[type="text"],
+input[type="password"],
+select,
+textarea,
+.context {
+  width: 100%;
+  font: inherit;
+  font-size: 13px;
+  color: var(--ink);
+  background: #fff;
+  border: var(--bw) solid var(--ink);
+  border-radius: var(--r);
+  outline: none;
+  padding: 10px 12px;
+  transition: border-color var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
+}
+input::placeholder { color: var(--grey); }
+
+input[type="text"]:focus-visible,
+input[type="password"]:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  border-color: var(--red);
+  box-shadow: var(--shadow-sm);
+}
+
+textarea {
+  min-height: 66px;
+  line-height: 1.5;
+  resize: vertical;
+}
+
+/* Custom select — solid TRIANGLE chevron that flips open, plus a themed
+ * option list. The closed control is fully ours; the native option popup is
+ * OS-drawn, but Chromium honours these option colours so it matches the theme. */
+.select-wrap { position: relative; }
+select {
+  appearance: none;
+  -webkit-appearance: none;
+  padding-right: 36px;
+  cursor: pointer;
+  transition: border-color var(--dur) var(--ease), background var(--dur) var(--ease),
+    box-shadow var(--dur) var(--ease);
+}
+.select-wrap:hover select { border-color: var(--red); }
+
+.select-wrap::after {
+  content: "";
+  position: absolute;
+  right: 14px;
+  top: 50%;
+  width: 0;
+  height: 0;
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-top: 7px solid var(--ink);
+  transform: translateY(-50%);
+  transform-origin: center 3px;
+  pointer-events: none;
+  transition: transform var(--dur) var(--ease), border-top-color var(--dur) var(--ease);
+}
+.select-wrap:hover::after { border-top-color: var(--red); }
+/* Flip the triangle to point up while the select is focused / open */
+.select-wrap:focus-within::after {
+  transform: translateY(-50%) rotate(180deg);
+  border-top-color: var(--red);
+}
+
+/* Theme the native option list so it matches the cream/ink/red palette */
+select option {
+  background: var(--surface);
+  color: var(--ink);
+  font-weight: 500;
+  padding: 8px 10px;
+}
+select option:checked,
+select option:hover {
+  background: var(--red);
+  color: var(--on-red);
+}
+
+/* ---- Toggle switch — SQUARE track, CIRCLE knob ------------------------ */
+.switch {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ink);
+  text-transform: none;
+  letter-spacing: normal;
+}
+.switch input { position: absolute; opacity: 0; width: 0; height: 0; }
+.switch .track {
+  position: relative;
+  flex: none;
+  width: 44px;
+  height: 24px;
+  background: #fff;
+  border: var(--bw) solid var(--ink);
+  border-radius: var(--r);
+  transition: background var(--dur) var(--ease);
+}
+.switch .knob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--ink);
+  transition: transform var(--dur) var(--ease), background var(--dur) var(--ease);
+}
+.switch input:checked + .track { background: var(--red); }
+.switch input:checked + .track .knob { transform: translateX(20px); background: #fff; }
+.switch input:focus-visible + .track { box-shadow: var(--shadow-sm); }
+
+/* ---- Buttons ---------------------------------------------------------- */
+.btn {
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--ink);
+  background: var(--surface);
+  border: var(--bw) solid var(--ink);
+  border-radius: var(--r);
+  box-shadow: var(--shadow);
+  cursor: pointer;
+  padding: 11px 18px;
+  transition: transform var(--dur) var(--ease), box-shadow var(--dur) var(--ease),
+    background var(--dur) var(--ease), color var(--dur) var(--ease);
+}
+.btn:hover { transform: translate(-2px, -2px); box-shadow: var(--shadow-lift); }
+.btn:active { transform: translate(2px, 2px); box-shadow: 0 0 0 var(--ink); }
+.btn:focus-visible { box-shadow: var(--shadow-lift); }
+.btn-primary { background: var(--red); color: var(--on-red); }
+.btn-primary:active { background: var(--red-dark); }
+.btn-block { width: 100%; margin-top: var(--sp-1); }
+
+/* ---- Info panel (auto-detected context) ------------------------------- */
+.context {
+  font-size: 11px;
+  color: var(--grey);
+  line-height: 1.6;
+  white-space: pre-wrap;
+  min-height: 20px;
+  background: var(--bg);
+}
+
+/* ---- Possible-duplicates warning -------------------------------------- */
+#dupes {
+  display: none;
+  border: var(--bw) solid var(--red);
+  background: var(--surface);
+  padding: 8px 10px;
+  font-size: 11px;
+}
+#dupes.show { display: block; }
+#dupes .dupes-title {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--red);
+  margin-bottom: 4px;
+}
+#dupes a {
+  display: block;
+  padding: 2px 0;
+  color: var(--ink);
+  text-decoration: none;
+}
+#dupes a:hover { color: var(--red); text-decoration: underline; }
+
+/* ---- Status / notification -------------------------------------------- */
+.status {
+  margin: 2px 0 0;
+  min-height: 16px;
+  font-size: 12px;
+  color: var(--grey);
+}
+.status:not(:empty) { animation: fade var(--dur) var(--ease); }
+.status a { color: var(--red); font-weight: 700; text-decoration: none; }
+.status a:hover { text-decoration: underline; }
+@keyframes fade { from { opacity: 0; } to { opacity: 1; } }
+
+/* ---- Screenshot capture + annotation ---------------------------------- */
+#annotate { margin-top: var(--sp-1); }
+.tools { display: flex; gap: 6px; margin-bottom: 6px; }
+.tool {
+  flex: none;
+  min-width: 34px;
+  height: 30px;
+  font-size: 14px;
+  color: var(--ink);
+  background: var(--surface);
+  border: var(--bw) solid var(--ink);
+  border-radius: var(--r);
+  box-shadow: var(--shadow-sm);
+  cursor: pointer;
+  transition: transform var(--dur) var(--ease), background var(--dur) var(--ease),
+    color var(--dur) var(--ease);
+}
+#undo { min-width: auto; padding: 0 10px; }
+.tool:hover { transform: translate(-1px, -1px); }
+.tool.active { background: var(--red); color: var(--on-red); }
+#shot {
+  display: block;
+  width: 100%;
+  border: var(--bw) solid var(--ink);
+  box-shadow: var(--shadow);
+  cursor: crosshair;
+}
+
+/* ---- Misc helpers ----------------------------------------------------- */
+.warn { color: var(--red); font-weight: 700; }
+.hint {
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--grey);
+  line-height: 1.5;
+  letter-spacing: normal;
+  text-transform: none;
+}
+.row { display: flex; align-items: center; gap: var(--sp-3); }
+
+/* Reusable loading spinner (available for future loading states) */
+.spinner {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border: 3px solid var(--ink);
+  border-top-color: var(--red);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  vertical-align: middle;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Reusable tooltip: add data-tip="..." to any element */
+[data-tip] { position: relative; }
+[data-tip]::after {
+  content: attr(data-tip);
+  position: absolute;
+  bottom: 125%;
+  left: 50%;
+  transform: translateX(-50%) translateY(3px);
+  padding: 6px 9px;
+  font-size: 11px;
+  white-space: nowrap;
+  color: var(--on-red);
+  background: var(--ink);
+  border-radius: var(--r);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--dur) var(--ease), transform var(--dur) var(--ease);
+}
+[data-tip]:hover::after { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+/* ---- Scrollbar -------------------------------------------------------- */
+::-webkit-scrollbar { width: 12px; height: 12px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb {
+  background: var(--ink);
+  border: 3px solid var(--bg);
+}
+::-webkit-scrollbar-thumb:hover { background: var(--red); }
+
+/* ---- Respect reduced motion ------------------------------------------ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
+}
