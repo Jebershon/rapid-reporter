@@ -13,7 +13,8 @@ const statusText = document.getElementById("status");
 //    chrome.storage.local.get asks for the keys we want; it hands them back in an
 //    object. If nothing was saved yet, the fields stay empty.
 chrome.storage.local.get(["redmineUrl", "apiKey"], (saved) => {
-  if (saved.redmineUrl) urlInput.value = saved.redmineUrl;
+  // Pre-fill the tracker URL so a tester only needs to paste their API key.
+  urlInput.value = saved.redmineUrl || "https://tracker.rapiddata.com";
   if (saved.apiKey) keyInput.value = saved.apiKey;
 });
 

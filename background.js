@@ -8,6 +8,11 @@ if (chrome.sidePanel && chrome.sidePanel.setPanelBehavior) {
   chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(() => {});
 }
 
+// On first install, open Settings so the tester can paste their API key.
+chrome.runtime.onInstalled.addListener((details) => {
+  if (details.reason === "install") chrome.runtime.openOptionsPage();
+});
+
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === "GET_PROJECTS") {
     getProjects().then(sendResponse);
